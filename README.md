@@ -67,5 +67,13 @@ Your credentials are **encrypted locally** and all sensitive files are stored se
 Install them with:
 ```bash
 pip install customtkinter pillow cryptography
+```
+> **Note on Windows Defender and Antivirus False Positives**
+>
+> Because Project Kagami is packaged as a custom Windows executable (EXE) using PyInstaller, some antivirus programs—including Windows Defender—may flag or quarantine the app with messages like “Trojan:Win32/Bearfoos.A!ml.”
+>
+> This is a **false positive** common with new or unsigned Python applications. Project Kagami contains **no malware or viruses** and does not transmit any of your data.
+>
+> If you trust this app and built it yourself, you can restore it from your antivirus quarantine and add an exclusion for the app or its folder.
 
 
