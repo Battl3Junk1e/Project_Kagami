@@ -53,7 +53,7 @@ Your credentials are **encrypted locally** and all sensitive files are stored se
 - All imports are strictly minimized for a smaller executable.
 - Example:
     ```
-    pyinstaller --onefile --noconsole kagami.py
+    pyinstaller --clean --onefile --noconsole --icon=kagami_icon_standard.ico --add-data "kagami_icon_standard.ico;." --add-data "logo.webp;." kagami.py
     ```
 
 ---
@@ -67,4 +67,5 @@ Your credentials are **encrypted locally** and all sensitive files are stored se
 Install them with:
 ```bash
 pip install customtkinter pillow cryptography
+
 
