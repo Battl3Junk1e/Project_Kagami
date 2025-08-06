@@ -13,7 +13,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
 
-# --- Cross-platform app data directory utility ---
+#Cross-platform app data directory
 def get_appdata_dir():
     r"""
     Returns best directory for app data.
@@ -35,12 +35,20 @@ def get_appdata_dir():
 
 APPDATA_DIR = get_appdata_dir()
 
+#Making sure images gets into the exe
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller EXE """
+    if hasattr(sys, '_MEIPASS'):
+        return os.path.join(sys._MEIPASS, relative_path)
+    return os.path.join(os.path.abspath("."), relative_path)
+
 class KagamiApp:
+    #Constants for encryption
     N = 2 ** 14
     R = 8
     P = 1
     KEY_LEN = 64
-
+    #
     def __init__(self, root):
         self.root = root
         self.root.title("Project Kagami")
@@ -51,31 +59,34 @@ class KagamiApp:
         self.x = (self.screen_width // 2) - (self.window_width // 2)
         self.y = (self.screen_height // 2) - (self.window_height // 2)
         self.root.geometry(f"{self.window_width}x{self.window_height}+{self.x}+{self.y}")
-        self.root.iconbitmap("kagami_icon_standard.ico")
+        icon_path = resource_path("kagami_icon_standard.ico")
+        self.root.iconbitmap(icon_path)
+
 
         self.current_frame = None
         self.show_login_frame()
-
-    # Now these paths point to the hidden appdata location!
+    
     def master_key_path(self):
         return os.path.join(APPDATA_DIR, "master.kagami")
 
     def passwords_dat_path(self):
         return os.path.join(APPDATA_DIR, "passwords.kagami")
-
+    #Destroys the active frame so the next screen can be shown seamlessly
     def clear_current_frame(self):
         if self.current_frame is not None:
             self.current_frame.destroy()
             self.current_frame = None
-
+    #Creates the login frame
     def show_login_frame(self):
         self.clear_current_frame()
         frame = ctk.CTkFrame(self.root, fg_color="#203354")
         frame.pack(fill="both", expand=True)
         self.current_frame = frame
-
-        if os.path.exists("logo.webp"):
-            logo_img = ctk.CTkImage(Image_open("logo.webp"), size=(300, 200))
+        logo_path = resource_path("logo.webp")
+        if not os.path.exists(logo_path):
+            messagebox.showerror("Error", f"Logo not found at {logo_path}")
+        else:
+            logo_img = ctk.CTkImage(Image_open(logo_path), size=(300, 200))
             logo_label = ctk.CTkLabel(frame, image=logo_img, text="")
             logo_label.pack(pady=(50, 0))
 
@@ -93,6 +104,7 @@ class KagamiApp:
         info = ctk.CTkLabel(frame, text="First login will save this as your master password.", font=("Segoe UI", 15, "italic", "bold"), text_color="#A9BCD0")
         info.pack(pady=(4, 0))
 
+    #Logic for checking if the master password exists and is correct
     def attempt_login(self):
         try:
             if not os.path.exists(self.master_key_path()):
@@ -120,7 +132,7 @@ class KagamiApp:
                 messagebox.showerror("Incorrect password", "The password you have entered is not correct.")
         except Exception as e:
             messagebox.showerror("Error", f"Something went wrong: {e}")
-
+    #Handles the creation of the master password
     def create_master_password(self, password):
         salt = os.urandom(16)
         key = scrypt(
@@ -133,7 +145,7 @@ class KagamiApp:
         )
         with open(self.master_key_path(), "w") as f:
             f.write(f"{b64encode(salt).decode()}\n{b64encode(key).decode()}")
-
+    #Creates the main menu frame
     def show_main_frame(self):
         self.clear_current_frame()
         frame = ctk.CTkFrame(self.root, fg_color="#1e2638")
@@ -188,7 +200,7 @@ class KagamiApp:
         messagebox.showinfo("Saved", f"Password for {website} has been saved successfully.")
         self.website_input.delete(0, ctk.END)
         self.password_input.delete(0, ctk.END)
-
+    #Generates a random password for the user and copies to clipboard
     def generate_password(self):
         letters = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
         numbers = '0123456789'
@@ -204,7 +216,7 @@ class KagamiApp:
         self.root.clipboard_clear()
         self.root.clipboard_append(password)
         self.root.update()
-
+    #Creates the frame for the decrypted passwordlist
     def show_view_passwords(self):
         self.clear_current_frame()
         frame = ctk.CTkFrame(self.root, fg_color="#203354")
@@ -259,7 +271,7 @@ class KagamiApp:
         except Exception as e:
             err_lbl = ctk.CTkLabel(scroll_frame, text=f"Failed to read password file: {e}", text_color="#ff8080")
             err_lbl.pack(pady=10)
-
+    #Copies the selected password to the clipboard
     def copy_password_entry(self, index):
         try:
             with open(self.passwords_dat_path(), "r") as f:
@@ -280,7 +292,7 @@ class KagamiApp:
                 messagebox.showwarning("Invalid Index", "Selected entry does not exist.")
         except Exception as e:
             messagebox.showerror("Error", f"Could not copy password: {e}")
-
+    #Logic to delete passwords
     def delete_password_entry(self, index):
         try:
             with open(self.passwords_dat_path(), "r") as f:
