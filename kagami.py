@@ -52,7 +52,7 @@ class KagamiApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Project Kagami")
-        self.window_width = 700
+        self.window_width = 900
         self.window_height = 700
         self.screen_width = self.root.winfo_screenwidth()
         self.screen_height = self.root.winfo_screenheight()
@@ -152,13 +152,16 @@ class KagamiApp:
         frame.pack(fill="both", expand=True)
         self.current_frame = frame
 
+
         title = ctk.CTkLabel(frame, text="Add a New Password", font=("Segoe UI", 18, "bold"))
         title.pack(pady=(150, 10))
 
-        self.website_input = ctk.CTkEntry(frame, placeholder_text="Website", width=340)
-        self.website_input.pack(pady=(0, 10))
+        self.service_input = ctk.CTkEntry(frame, placeholder_text="Service", width=340)
+        self.service_input.pack(pady=(0, 10))
+        self.login_input = ctk.CTkEntry(frame, placeholder_text="Login", width=340)
+        self.login_input.pack(pady=(0, 10))
         self.password_input = ctk.CTkEntry(frame, placeholder_text="Password", width=340)
-        self.password_input.pack(pady=(0, 12))
+        self.password_input.pack(pady=(0, 10))
 
         btn_frame = ctk.CTkFrame(frame, fg_color="transparent")
         btn_frame.pack(pady=(0, 12))
@@ -175,16 +178,18 @@ class KagamiApp:
         exit_btn.pack(pady=10)
 
     def save_password_entry(self):
-        website = self.website_input.get()
+        service = self.service_input.get()
+        login = self.login_input.get()
         password = self.password_input.get()
-        if not website or not password:
+        if not login or not password or not service:
             messagebox.showerror("Error", "You can't leave any fields empty.")
             return
         aesgcm = AESGCM(self.aes_key[:32])
         nonce = os.urandom(12)
         ciphertext = aesgcm.encrypt(nonce, password.encode(), None)
         entry = {
-            "website": website,
+            "Service": service,
+            "Login": login,
             "nonce": b64encode(nonce).decode(),
             "ciphertext": b64encode(ciphertext).decode()
         }
@@ -197,9 +202,12 @@ class KagamiApp:
         entries.append(entry)
         with open(passwords_file, "w") as f:
             json.dump(entries, f, indent=4)
-        messagebox.showinfo("Saved", f"Password for {website} has been saved successfully.")
-        self.website_input.delete(0, ctk.END)
+        messagebox.showinfo("Saved", f"Password for {service} has been saved successfully.")
+        self.service_input.delete(0, ctk.END)
+        self.login_input.delete(0, ctk.END)
         self.password_input.delete(0, ctk.END)
+
+
     #Generates a random password for the user and copies to clipboard
     def generate_password(self):
         letters = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
@@ -241,33 +249,43 @@ class KagamiApp:
                 entries = json.load(f)
             aesgcm = AESGCM(self.aes_key[:32])
             for idx, entry in enumerate(entries):
-                website = entry["website"]
+                service = entry["Service"]
+                login = entry["Login"]
                 nonce = b64decode(entry["nonce"])
                 ciphertext = b64decode(entry["ciphertext"])
                 try:
                     password = aesgcm.decrypt(nonce, ciphertext, None).decode()
-                    display = f"{website}\n{password}"
+                    display = f"{login}\n{password}"
                 except Exception:
-                    display = f"{website}\n[DECRYPTION FAILED]"
+                    display = f"{login}\n[DECRYPTION FAILED]"
+
+        
 
                 entry_frame = ctk.CTkFrame(scroll_frame, fg_color="#22335A")
                 entry_frame.pack(fill="x", pady=6, padx=6)
 
-                entry_label = ctk.CTkLabel(entry_frame, text=display, font=("Segoe UI", 13), anchor="w", justify="left")
-                entry_label.pack(side="left", padx=10, expand=True)
+                #Spacing
+                entry_frame.grid_columnconfigure(4, weight=1) 
 
-                del_btn = ctk.CTkButton(
-                    entry_frame, text="Delete", fg_color="#3c4251", text_color="#cfd4e2",
-                    width=80,
-                    command=lambda i=idx: self.delete_password_entry(i)
-                )
-                del_btn.pack(side="right", padx=10)
-                copy_btn = ctk.CTkButton(
-                    entry_frame, text="Copy", fg_color="#3c4251", text_color="#cfd4e2",
-                    width=80,
-                    command=lambda i=idx: self.copy_password_entry(i)
-                )
-                copy_btn.pack(side="left", padx=10)
+                # service (right aligned in fixed-width col)
+                service_label = ctk.CTkLabel(entry_frame, text=service, font=("Segoe UI", 13), anchor="w", justify="left", width=140)
+                service_label.grid(row=0, column=1, sticky="e", padx=(10,0))
+
+                # spacer between service and login
+                spacer_service = ctk.CTkFrame(entry_frame, width=100, height=1, fg_color="transparent")
+                spacer_service.grid(row=0, column=2)
+
+                # login + password (left aligned, starts at same pixel every row)
+                login_info = ctk.CTkLabel(entry_frame, text=display, font=("Segoe UI", 13), anchor="w", justify="left")
+                login_info.grid(row=0, column=3, sticky="w")
+
+                # buttons on right
+                copy_btn = ctk.CTkButton(entry_frame, text="Copy", width=80, fg_color="#3c4251", text_color="#cfd4e2")
+                copy_btn.grid(row=0, column=5, padx=(10,6), sticky="e")
+
+                del_btn = ctk.CTkButton(entry_frame, text="Delete", width=80, fg_color="#3c4251", text_color="#cfd4e2", command=lambda i=idx: self.delete_password_entry(i))
+                del_btn.grid(row=0, column=6, padx=(0,10), sticky="e")
+
         except Exception as e:
             err_lbl = ctk.CTkLabel(scroll_frame, text=f"Failed to read password file: {e}", text_color="#ff8080")
             err_lbl.pack(pady=10)
