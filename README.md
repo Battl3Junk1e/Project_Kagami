@@ -6,7 +6,9 @@ Project Kagami provides a simple, intuitive GUI built with [CustomTkinter](https
 Your credentials are **encrypted locally** and all sensitive files are stored securely in system-specific, hidden user folders — never on your desktop or in obvious locations.
 
 ---
+![Alt text](images/Project_Kagami_infographic.png)
 
+---
 ## Features
 
 - 🔑 **Strong encryption** using scrypt KDF and AES-GCM
@@ -75,5 +77,6 @@ pip install customtkinter pillow cryptography
 > This is a **false positive** common with new or unsigned Python applications. Project Kagami contains **no malware or viruses** and does not transmit any of your data.
 >
 > If you trust this app and built it yourself, you can restore it from your antivirus quarantine and add an exclusion for the app or its folder.
+
 
 
