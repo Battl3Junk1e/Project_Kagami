@@ -1,8 +1,10 @@
 ver 1.0.1 | 2025-08-06
+
 -Release of first iteration of the app
 
 
 ver 1.0.2 | 2025-08-11
+
 Added:
 - Service input for clearer sorting of passwords
 - changelog.txt
@@ -14,17 +16,39 @@ Changed:
 - Window size from 700x700 to 900x700
 
 
+ver 1.0.3 | 2025-08-13
+
+Added:
+- Frame to hold the logo image 
+- Checkbox to hide password inputs
+- Function to handle the swapping of hiding password inputs 
+- Lable for search box
+- A 5min auto-lock timer
+- Helper functions for the auto-lock
+
+Fixed:
+- Spacing between login and password in view passwords window
+
+Changed:
+- Padding on the logo image
+- Font size on password info and subtitle
+
+Removed:
+- Title on login screen
+
+
+
+
+
 # TODO
 
 High Priority
-- Implement search functionality to quickly locate stored entries.
+-
 
 Medium Priority
-- Add checkbox to toggle password visibility on pages 2 and 3.
 - Introduce password tagging for improved organization and filtering.
-- Implement auto-lock after a period of inactivity for enhanced security.
 
 Low Priority
 - Add keyboard shortcuts for faster navigation.
 - Integrate application with the system tray for quick access.
-- Implement built-in authenticator functionality.
+- Ability to edit saved entries
