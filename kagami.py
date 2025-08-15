@@ -48,7 +48,7 @@ class KagamiApp:
     R = 8
     P = 1
     KEY_LEN = 64
-    #
+    
     def __init__(self, root):
         self.root = root
         self.root.title("Project Kagami")
@@ -61,6 +61,8 @@ class KagamiApp:
         self.root.geometry(f"{self.window_width}x{self.window_height}+{self.x}+{self.y}")
         icon_path = resource_path("kagami_icon_standard.ico")
         self.root.iconbitmap(icon_path)
+        self.autolock_job = None
+        self.activity_bound = False
 
 
         self.current_frame = None
@@ -71,15 +73,19 @@ class KagamiApp:
 
     def passwords_dat_path(self):
         return os.path.join(APPDATA_DIR, "passwords.kagami")
+    
     #Destroys the active frame so the next screen can be shown seamlessly
     def clear_current_frame(self):
         if self.current_frame is not None:
             self.current_frame.destroy()
             self.current_frame = None
+
     #Creates the login frame
     def show_login_frame(self):
         self.clear_current_frame()
         frame = ctk.CTkFrame(self.root, fg_color="#203354")
+        img_frame = ctk.CTkFrame(frame, fg_color="#8c98a1")
+        img_frame.pack(pady=(50,20))
         frame.pack(fill="both", expand=True)
         self.current_frame = frame
         logo_path = resource_path("logo.webp")
@@ -87,12 +93,11 @@ class KagamiApp:
             messagebox.showerror("Error", f"Logo not found at {logo_path}")
         else:
             logo_img = ctk.CTkImage(Image_open(logo_path), size=(300, 200))
-            logo_label = ctk.CTkLabel(frame, image=logo_img, text="")
-            logo_label.pack(pady=(50, 0))
+            logo_label = ctk.CTkLabel(img_frame, image=logo_img, text="")
+            logo_label.pack(pady=(20, 20))
 
-        title = ctk.CTkLabel(frame, text="Project Kagami", font=("Segoe UI", 24, "bold"))
-        title.pack(pady=(8, 8))
-        subtitle = ctk.CTkLabel(frame, text="Please enter your master password", font=("Segoe UI", 14, "bold"))
+
+        subtitle = ctk.CTkLabel(frame, text="Please enter your master password", font=("Segoe UI", 17, "bold"))
         subtitle.pack(pady=(0, 20))
 
         self.password_input_login = ctk.CTkEntry(frame, show="*", width=240)
@@ -103,6 +108,7 @@ class KagamiApp:
 
         info = ctk.CTkLabel(frame, text="First login will save this as your master password.", font=("Segoe UI", 15, "italic", "bold"), text_color="#A9BCD0")
         info.pack(pady=(4, 0))
+        self.disable_activity_tracking()
 
     #Logic for checking if the master password exists and is correct
     def attempt_login(self):
@@ -132,6 +138,7 @@ class KagamiApp:
                 messagebox.showerror("Incorrect password", "The password you have entered is not correct.")
         except Exception as e:
             messagebox.showerror("Error", f"Something went wrong: {e}")
+
     #Handles the creation of the master password
     def create_master_password(self, password):
         salt = os.urandom(16)
@@ -145,6 +152,7 @@ class KagamiApp:
         )
         with open(self.master_key_path(), "w") as f:
             f.write(f"{b64encode(salt).decode()}\n{b64encode(key).decode()}")
+
     #Creates the main menu frame
     def show_main_frame(self):
         self.clear_current_frame()
@@ -162,6 +170,11 @@ class KagamiApp:
         self.login_input.pack(pady=(0, 10))
         self.password_input = ctk.CTkEntry(frame, placeholder_text="Password", width=340)
         self.password_input.pack(pady=(0, 10))
+        self.check_box = ctk.CTkCheckBox(frame, text="Hide password", command=self.hide_password)
+        self.check_box.place(x=630, y=267)
+
+
+
 
         btn_frame = ctk.CTkFrame(frame, fg_color="transparent")
         btn_frame.pack(pady=(0, 12))
@@ -173,10 +186,19 @@ class KagamiApp:
         view_btn = ctk.CTkButton(frame, text="View Saved Passwords", command=self.show_view_passwords)
         view_btn.pack(pady=40)
 
-        exit_btn = ctk.CTkButton(frame, text="Exit", fg_color="#243A5E", hover_color="#2C4C7B",
-                                 command=self.root.destroy)
+        exit_btn = ctk.CTkButton(frame, text="Exit", fg_color="#243A5E", hover_color="#2C4C7B", command=self.root.destroy)
         exit_btn.pack(pady=10)
+        self.enable_activity_tracking()
+        self.start_autolock_timer()
 
+    # Handles password toggle
+    def hide_password(self):
+        if self.check_box.get() == 1:
+            self.password_input.configure(show="*")
+        elif self.check_box.get() ==0:
+            self.password_input.configure(show="")
+
+    # Encrypts and saves the entered service, login, and password to the password file.  
     def save_password_entry(self):
         service = self.service_input.get()
         login = self.login_input.get()
@@ -224,6 +246,7 @@ class KagamiApp:
         self.root.clipboard_clear()
         self.root.clipboard_append(password)
         self.root.update()
+
     #Creates the frame for the decrypted passwordlist
     def show_view_passwords(self):
         self.clear_current_frame()
@@ -231,8 +254,8 @@ class KagamiApp:
         frame.pack(fill="both", expand=True)
         self.current_frame = frame
 
-        scroll_frame = ctk.CTkScrollableFrame(frame, width=600, height=500, fg_color="#18253c")
-        scroll_frame.pack(pady=(10, 10), padx=10, fill="both", expand=True)
+        self.scroll_frame = ctk.CTkScrollableFrame(frame, width=600, height=500, fg_color="#18253c")
+        self.scroll_frame.pack(pady=(10, 10), padx=10, fill="both", expand=True)
 
         btn_frame = ctk.CTkFrame(frame, fg_color="transparent")
         btn_frame.pack(fill="x", pady=12)
@@ -243,11 +266,19 @@ class KagamiApp:
                                  command=self.root.destroy)
         exit_btn.pack(side="right", padx=20)
 
+        self.search_var = ctk.StringVar()
+        self.search_bar = ctk.CTkEntry(btn_frame, width=150, textvariable=self.search_var)
+        self.search_bar.place(x=400)
+        self.search_bar.bind("<KeyRelease>", self.search_password)
+        search_lable = ctk.CTkLabel(btn_frame, text="Search:", font=("Segoe UI", 15, "bold"))
+        search_lable.place(x=346)
+        
         # Load entries
         try:
             with open(self.passwords_dat_path(), "r") as f:
                 entries = json.load(f)
             aesgcm = AESGCM(self.aes_key[:32])
+            self.entries = []
             for idx, entry in enumerate(entries):
                 service = entry["Service"]
                 login = entry["Login"]
@@ -255,40 +286,95 @@ class KagamiApp:
                 ciphertext = b64decode(entry["ciphertext"])
                 try:
                     password = aesgcm.decrypt(nonce, ciphertext, None).decode()
-                    display = f"{login}\n{password}"
+                    
                 except Exception:
-                    display = f"{login}\n[DECRYPTION FAILED]"
+                    messagebox.showerror(f"{login}\n[DECRYPTION FAILED]")
 
-        
+                self.entries.append({
+                    "Service": service,
+                    "Login": login,
+                    "Password": password
+                })
+                self.render_entries(self.entries)
 
-                entry_frame = ctk.CTkFrame(scroll_frame, fg_color="#22335A")
-                entry_frame.pack(fill="x", pady=6, padx=6)
+                entry_frame = ctk.CTkFrame(self.scroll_frame, fg_color="#22335A")
 
-                #Spacing
                 entry_frame.grid_columnconfigure(4, weight=1) 
 
-                # service (right aligned in fixed-width col)
                 service_label = ctk.CTkLabel(entry_frame, text=service, font=("Segoe UI", 13), anchor="w", justify="left", width=140)
                 service_label.grid(row=0, column=1, sticky="e", padx=(10,0))
 
-                # spacer between service and login
+                
                 spacer_service = ctk.CTkFrame(entry_frame, width=100, height=1, fg_color="transparent")
                 spacer_service.grid(row=0, column=2)
 
-                # login + password (left aligned, starts at same pixel every row)
-                login_info = ctk.CTkLabel(entry_frame, text=display, font=("Segoe UI", 13), anchor="w", justify="left")
-                login_info.grid(row=0, column=3, sticky="w")
+                
+                login_info = ctk.CTkLabel(entry_frame, text=login, font=("Segoe UI", 13), anchor="w", justify="left")
+                login_info.grid(row=0, column=3, sticky="w", pady=(0,25))
 
-                # buttons on right
-                copy_btn = ctk.CTkButton(entry_frame, text="Copy", width=80, fg_color="#3c4251", text_color="#cfd4e2")
+                password_info = ctk.CTkLabel(entry_frame, text=password, font=("Segoe UI", 13), anchor="w", justify="left")
+                password_info.grid(row=0, column=3, sticky="w", pady=(20,0))
+
+                
+                copy_btn = ctk.CTkButton(entry_frame, text="Copy", width=80, fg_color="#3c4251", text_color="#cfd4e2", command=self.copy_password_entry)
                 copy_btn.grid(row=0, column=5, padx=(10,6), sticky="e")
 
                 del_btn = ctk.CTkButton(entry_frame, text="Delete", width=80, fg_color="#3c4251", text_color="#cfd4e2", command=lambda i=idx: self.delete_password_entry(i))
                 del_btn.grid(row=0, column=6, padx=(0,10), sticky="e")
+                
 
         except Exception as e:
-            err_lbl = ctk.CTkLabel(scroll_frame, text=f"Failed to read password file: {e}", text_color="#ff8080")
+            err_lbl = ctk.CTkLabel(self.scroll_frame, text=f"Failed to read password file: {e}", text_color="#ff8080")
             err_lbl.pack(pady=10)
+
+    # Rebuilds the scrollable password list with rows for each entry and its action buttons.
+    def render_entries(self, entries_to_show):
+        for child in self.scroll_frame.winfo_children():
+            child.destroy()
+
+        for idx, entry in enumerate(entries_to_show):
+            service = entry["Service"]
+            login = entry["Login"]
+            password = entry["Password"]
+            row = ctk.CTkFrame(self.scroll_frame, fg_color="#22335A")
+            row.pack(fill="x", pady=6, padx=6)
+
+            
+            row.grid_columnconfigure(4, weight=1)
+
+            
+            service_lbl = ctk.CTkLabel(row, text=service, font=("Segoe UI", 13), anchor="e", justify="right", width=140)
+            service_lbl.grid(row=0, column=1, sticky="e", padx=(10, 0))
+
+            # Spacer
+            spacer = ctk.CTkFrame(row, width=100, height=1, fg_color="transparent")
+            spacer.grid(row=0, column=2)
+
+            login_info = ctk.CTkLabel(row, text=login, font=("Segoe UI", 13), anchor="w", justify="left")
+            login_info.grid(row=0, column=3, sticky="w", pady=(0,25))
+
+            password_info = ctk.CTkLabel(row, text=password, font=("Segoe UI", 13), anchor="w", justify="left")
+            password_info.grid(row=0, column=3, sticky="w", pady=(20,0))
+
+            copy_btn = ctk.CTkButton(row, text="Copy", width=80, fg_color="#3c4251", text_color="#cfd4e2", command=self.copy_password_entry)
+            copy_btn.grid(row=0, column=5, padx=(10, 6), sticky="e")
+
+            del_btn = ctk.CTkButton(row, text="Delete", width=80, fg_color="#3c4251", text_color="#cfd4e2", command=lambda i=idx, e=entry: self.delete_by_object(e))
+            del_btn.grid(row=0, column=6, padx=(0, 10), sticky="e")
+
+    def search_password(self, event=None):
+        q = self.search_var.get().strip().lower()
+        if not q:
+            self.render_entries(self.entries)
+            return
+
+        # Match service, login, or password 
+        results = [
+            e for e in self.entries
+            if q in e["Service"].lower() or q in e["Login"].lower() or q in e["Password"].lower()
+        ]
+        self.render_entries(results)
+    
     #Copies the selected password to the clipboard
     def copy_password_entry(self, index):
         try:
@@ -310,6 +396,7 @@ class KagamiApp:
                 messagebox.showwarning("Invalid Index", "Selected entry does not exist.")
         except Exception as e:
             messagebox.showerror("Error", f"Could not copy password: {e}")
+
     #Logic to delete passwords
     def delete_password_entry(self, index):
         try:
@@ -326,6 +413,39 @@ class KagamiApp:
             self.show_view_passwords()
         except Exception as e:
             messagebox.showerror("Error", f"Could not delete: {e}")
+
+    #The functions below are the ones that handle the auto-lock and helper functions.
+    def start_autolock_timer(self):
+        if hasattr(self, "autolock_job") and self.autolock_job:
+            self.root.after_cancel(self.autolock_job)
+        self.autolock_job = self.root.after(5 * 60 * 1000, self.lock_app)
+
+
+    def lock_app(self):
+        if self.autolock_job is not None:
+            self.root.after_cancel(self.autolock_job)
+            self.autolock_job = None
+        self.disable_activity_tracking()
+
+        self.aes_key = None
+        self.root.clipboard_clear()
+        self.show_login_frame()
+    
+    def reset_timer(self, event=None):
+        self.start_autolock_timer()
+
+    def enable_activity_tracking(self):
+        self.root.bind_all("<Key>", self.reset_timer)
+        self.root.bind_all("<Button>", self.reset_timer)
+
+    def disable_activity_tracking(self):
+        if not self.activity_bound:
+            return
+
+        self.root.unbind_all("<Key>")
+        self.root.unbind_all("<Button>")
+        self.activity_bound = False
+
 
 
 if __name__ == "__main__":
