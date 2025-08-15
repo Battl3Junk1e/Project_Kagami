@@ -279,7 +279,7 @@ class KagamiApp:
                 entries = json.load(f)
             aesgcm = AESGCM(self.aes_key[:32])
             self.entries = []
-            for idx, entry in enumerate(entries):
+            for entry in entries:
                 service = entry["Service"]
                 login = entry["Login"]
                 nonce = b64decode(entry["nonce"])
@@ -288,40 +288,17 @@ class KagamiApp:
                     password = aesgcm.decrypt(nonce, ciphertext, None).decode()
                     
                 except Exception:
-                    messagebox.showerror(f"{login}\n[DECRYPTION FAILED]")
+                    messagebox.showerror("Error",f"{login}\n[DECRYPTION FAILED]")
 
                 self.entries.append({
                     "Service": service,
                     "Login": login,
-                    "Password": password
+                    "Password": password,
+                    
                 })
-                self.render_entries(self.entries)
-
-                entry_frame = ctk.CTkFrame(self.scroll_frame, fg_color="#22335A")
-
-                entry_frame.grid_columnconfigure(4, weight=1) 
-
-                service_label = ctk.CTkLabel(entry_frame, text=service, font=("Segoe UI", 13), anchor="w", justify="left", width=140)
-                service_label.grid(row=0, column=1, sticky="e", padx=(10,0))
-
                 
-                spacer_service = ctk.CTkFrame(entry_frame, width=100, height=1, fg_color="transparent")
-                spacer_service.grid(row=0, column=2)
 
-                
-                login_info = ctk.CTkLabel(entry_frame, text=login, font=("Segoe UI", 13), anchor="w", justify="left")
-                login_info.grid(row=0, column=3, sticky="w", pady=(0,25))
-
-                password_info = ctk.CTkLabel(entry_frame, text=password, font=("Segoe UI", 13), anchor="w", justify="left")
-                password_info.grid(row=0, column=3, sticky="w", pady=(20,0))
-
-                
-                copy_btn = ctk.CTkButton(entry_frame, text="Copy", width=80, fg_color="#3c4251", text_color="#cfd4e2", command=self.copy_password_entry)
-                copy_btn.grid(row=0, column=5, padx=(10,6), sticky="e")
-
-                del_btn = ctk.CTkButton(entry_frame, text="Delete", width=80, fg_color="#3c4251", text_color="#cfd4e2", command=lambda i=idx: self.delete_password_entry(i))
-                del_btn.grid(row=0, column=6, padx=(0,10), sticky="e")
-                
+            self.render_entries(self.entries)
 
         except Exception as e:
             err_lbl = ctk.CTkLabel(self.scroll_frame, text=f"Failed to read password file: {e}", text_color="#ff8080")
@@ -332,7 +309,7 @@ class KagamiApp:
         for child in self.scroll_frame.winfo_children():
             child.destroy()
 
-        for idx, entry in enumerate(entries_to_show):
+        for entry in entries_to_show:
             service = entry["Service"]
             login = entry["Login"]
             password = entry["Password"]
@@ -355,11 +332,12 @@ class KagamiApp:
 
             password_info = ctk.CTkLabel(row, text=password, font=("Segoe UI", 13), anchor="w", justify="left")
             password_info.grid(row=0, column=3, sticky="w", pady=(20,0))
-
-            copy_btn = ctk.CTkButton(row, text="Copy", width=80, fg_color="#3c4251", text_color="#cfd4e2", command=self.copy_password_entry)
+            file_service = service
+            file_login = login
+            copy_btn = ctk.CTkButton(row, text="Copy", width=80, fg_color="#3c4251", text_color="#cfd4e2", command=lambda s=file_service, l=file_login: self.copy_password_entry(s,l))
             copy_btn.grid(row=0, column=5, padx=(10, 6), sticky="e")
 
-            del_btn = ctk.CTkButton(row, text="Delete", width=80, fg_color="#3c4251", text_color="#cfd4e2", command=lambda i=idx, e=entry: self.delete_by_object(e))
+            del_btn = ctk.CTkButton(row, text="Delete", width=80, fg_color="#3c4251", text_color="#cfd4e2", command=lambda s=file_service, l=file_login: self.delete_password_entry(s,l))
             del_btn.grid(row=0, column=6, padx=(0, 10), sticky="e")
 
     def search_password(self, event=None):
@@ -374,42 +352,63 @@ class KagamiApp:
             if q in e["Service"].lower() or q in e["Login"].lower() or q in e["Password"].lower()
         ]
         self.render_entries(results)
-    
+
     #Copies the selected password to the clipboard
-    def copy_password_entry(self, index):
+    def copy_password_entry(self, service, login):
         try:
             with open(self.passwords_dat_path(), "r") as f:
                 entries = json.load(f)
-            if index < len(entries):
-                entry = entries[index]
-                nonce = b64decode(entry["nonce"])
-                ciphertext = b64decode(entry["ciphertext"])
-                aesgcm = AESGCM(self.aes_key[:32])
-                try:
-                    password = aesgcm.decrypt(nonce, ciphertext, None).decode()
-                    self.root.clipboard_clear()
-                    self.root.clipboard_append(password)
-                    messagebox.showinfo("Copied", "Password copied to clipboard!")
-                except Exception:
-                    messagebox.showwarning("Error", "Decryption failed.")
-            else:
-                messagebox.showwarning("Invalid Index", "Selected entry does not exist.")
+
+            # find the FIRST match by service+login
+            match = next((e for e in entries if
+                        isinstance(e, dict) and
+                        e.get("Service") == service and
+                        e.get("Login") == login), None)
+            if not match:
+                messagebox.showwarning("Not found", "Could not find that entry.")
+                return
+
+            aesgcm = AESGCM(self.aes_key[:32])
+            nonce = b64decode(match["nonce"])
+            ciphertext = b64decode(match["ciphertext"])
+            try:
+                password = aesgcm.decrypt(nonce, ciphertext, None).decode()
+            except Exception:
+                messagebox.showwarning("Error", "Decryption failed.")
+                return
+
+            self.root.clipboard_clear()
+            self.root.clipboard_append(password)
+            self.root.update()
+            messagebox.showinfo("Copied", "Password copied to clipboard!")
         except Exception as e:
             messagebox.showerror("Error", f"Could not copy password: {e}")
 
-    #Logic to delete passwords
-    def delete_password_entry(self, index):
+     #Logic to delete passwords
+    def delete_password_entry(self, service, login):
         try:
             with open(self.passwords_dat_path(), "r") as f:
                 content = f.read().strip()
                 entries = json.loads(content) if content else []
-            if index < len(entries):
-                confirm = messagebox.askyesno("Confirm", "Are you sure you want to delete this entry?")
-                if not confirm:
-                    return
-                del entries[index]
-                with open(self.passwords_dat_path(), "w") as f:
-                    json.dump(entries if entries else [], f, indent=4)
+
+            # find the FIRST match by service+login
+            idx = next((i for i, e in enumerate(entries)
+                        if isinstance(e, dict)
+                        and e.get("Service") == service
+                        and e.get("Login") == login), None)
+
+            if idx is None:
+                messagebox.showwarning("Not found", "Could not find that entry.")
+                return
+
+            if not messagebox.askyesno("Confirm", "Are you sure you want to delete this entry?"):
+                return
+
+            del entries[idx]
+            with open(self.passwords_dat_path(), "w") as f:
+                json.dump(entries, f, indent=4)
+
+            # refresh the view
             self.show_view_passwords()
         except Exception as e:
             messagebox.showerror("Error", f"Could not delete: {e}")

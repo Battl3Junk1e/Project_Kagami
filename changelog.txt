@@ -36,8 +36,13 @@ Changed:
 Removed:
 - Title on login screen
 
+ver 1.0.4 | 2025-08-15
 
+Fixed:
+- Bug with copy and delete buttons
 
+Removed:
+- Code that created invisible duplicates of login/password in the view frame
 
 
 # TODO
